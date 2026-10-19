@@ -93,7 +93,7 @@ export default function App() {
     });
 
     setSnackbarMessage('Data profil mahasiswa berhasil diperbarui!');
-    setSnackbarVisible(false);
+    setSnackbarVisible(true);
   };
 
   // Handler Reset Form
