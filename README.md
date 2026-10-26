@@ -24,7 +24,10 @@ Mobile2627Ganjil/
 ├── pertemuan1/    # Pengenalan & Setup Lingkungan Pengembangan
 ├── pertemuan2/    # Komponen Dasar React Native
 ├── pertemuan3/    # State & Props
-└── pertemuan4/    # Styling & Layout (JSX, Inline Style, StyleSheet, ScrollView)
+├── pertemuan4/    # Styling & Layout (JSX, Inline Style, StyleSheet, ScrollView)
+├── pertemuan5/    # Handling Input & Event Handling
+├── pertemuan6/    # Mekanisme Stack Navigation Manual
+└── pertemuan7/    # React Navigation (Drawer, Bottom Navbar, Stack) - Pendataan Barang UMKM
 ```
 
 ---
