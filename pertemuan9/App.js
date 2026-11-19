@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, SafeAreaView, StyleSheet, View } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SQLite from 'expo-sqlite';
 import {
@@ -13,6 +20,7 @@ import {
   PaperProvider,
   Surface,
   Text,
+  TextInput,
 } from 'react-native-paper';
 
 const initialMahasiswa = [
@@ -72,20 +80,42 @@ async function loadMahasiswa() {
       noTelepon TEXT NOT NULL,
       alamat TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS app_metadata (
+      key TEXT PRIMARY KEY NOT NULL,
+      value TEXT NOT NULL
+    );
   `);
 
-  for (const student of initialMahasiswa) {
+  const seedStatus = await db.getFirstAsync(
+    'SELECT value FROM app_metadata WHERE key = ?',
+    'initialMahasiswaSeeded'
+  );
+  if (!seedStatus) {
+    const existingStudents = await db.getFirstAsync(
+      'SELECT COUNT(*) AS count FROM mahasiswa'
+    );
+
+    if (existingStudents.count === 0) {
+      for (const student of initialMahasiswa) {
+        await db.runAsync(
+          `INSERT OR IGNORE INTO mahasiswa
+            (nim, nama, jurusan, angkatan, email, noTelepon, alamat)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          student.nim,
+          student.nama,
+          student.jurusan,
+          student.angkatan,
+          student.email,
+          student.noTelepon,
+          student.alamat
+        );
+      }
+    }
+
     await db.runAsync(
-      `INSERT OR IGNORE INTO mahasiswa
-        (nim, nama, jurusan, angkatan, email, noTelepon, alamat)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      student.nim,
-      student.nama,
-      student.jurusan,
-      student.angkatan,
-      student.email,
-      student.noTelepon,
-      student.alamat
+      'INSERT INTO app_metadata (key, value) VALUES (?, ?)',
+      'initialMahasiswaSeeded',
+      'true'
     );
   }
 
@@ -94,6 +124,45 @@ async function loadMahasiswa() {
      FROM mahasiswa
      ORDER BY nama COLLATE NOCASE`
   );
+}
+
+async function createMahasiswa(student) {
+  const db = await SQLite.openDatabaseAsync('mahasiswa.db');
+  await db.runAsync(
+    `INSERT INTO mahasiswa
+      (nim, nama, jurusan, angkatan, email, noTelepon, alamat)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    student.nim,
+    student.nama,
+    student.jurusan,
+    student.angkatan,
+    student.email,
+    student.noTelepon,
+    student.alamat
+  );
+}
+
+async function updateMahasiswa(id, student) {
+  const db = await SQLite.openDatabaseAsync('mahasiswa.db');
+  await db.runAsync(
+    `UPDATE mahasiswa
+     SET nim = ?, nama = ?, jurusan = ?, angkatan = ?, email = ?,
+         noTelepon = ?, alamat = ?
+     WHERE id = ?`,
+    student.nim,
+    student.nama,
+    student.jurusan,
+    student.angkatan,
+    student.email,
+    student.noTelepon,
+    student.alamat,
+    id
+  );
+}
+
+async function deleteMahasiswa(id) {
+  const db = await SQLite.openDatabaseAsync('mahasiswa.db');
+  await db.runAsync('DELETE FROM mahasiswa WHERE id = ?', id);
 }
 
 const theme = {
@@ -106,7 +175,7 @@ const theme = {
   },
 };
 
-function StudentList({ students, onSelect }) {
+function StudentList({ students, onSelect, onAdd }) {
   return (
     <View style={styles.content}>
       <View style={styles.titleRow}>
@@ -120,41 +189,64 @@ function StudentList({ students, onSelect }) {
             Data Mahasiswa
           </Text>
           <Text variant="bodyMedium" style={styles.subtitle}>
-            Pilih mahasiswa untuk melihat informasi lengkapnya.
+            Kelola data mahasiswa yang tersimpan di perangkat ini.
           </Text>
         </View>
       </View>
 
-      <Surface style={styles.listSurface} elevation={1}>
-        {students.map((item, index) => (
-          <View key={item.id}>
-            <List.Item
-              title={item.nama}
-              description={`NIM: ${item.nim}`}
-              titleStyle={styles.listTitle}
-              descriptionStyle={styles.listDescription}
-              left={(props) => (
-                <Avatar.Image
-                  {...props}
-                  source={require('./assets/icon.png')}
-                  size={44}
-                  style={styles.avatar}
+      <Button
+        mode="contained"
+        icon="plus"
+        onPress={onAdd}
+        style={styles.addButton}
+        contentStyle={styles.actionButtonContent}
+      >
+        Tambah Mahasiswa
+      </Button>
+
+      <ScrollView
+        style={styles.studentListScroll}
+        contentContainerStyle={styles.studentListContent}
+      >
+        {students.length === 0 ? (
+          <Surface style={styles.emptySurface} elevation={1}>
+            <Text variant="bodyLarge" style={styles.emptyText}>
+              Belum ada data mahasiswa. Tambahkan data pertama Anda.
+            </Text>
+          </Surface>
+        ) : (
+          <Surface style={styles.listSurface} elevation={1}>
+            {students.map((item, index) => (
+              <View key={item.id}>
+                <List.Item
+                  title={item.nama}
+                  description={`NIM: ${item.nim}`}
+                  titleStyle={styles.listTitle}
+                  descriptionStyle={styles.listDescription}
+                  left={(props) => (
+                    <Avatar.Image
+                      {...props}
+                      source={require('./assets/icon.png')}
+                      size={44}
+                      style={styles.avatar}
+                    />
+                  )}
+                  right={() => <Text style={styles.chevron}>›</Text>}
+                  onPress={() => onSelect(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Lihat detail ${item.nama}`}
                 />
-              )}
-              right={() => <Text style={styles.chevron}>›</Text>}
-              onPress={() => onSelect(item)}
-              accessibilityRole="button"
-              accessibilityLabel={`Lihat detail ${item.nama}`}
-            />
-            {index < students.length - 1 && <Divider />}
-          </View>
-        ))}
-      </Surface>
+                {index < students.length - 1 && <Divider />}
+              </View>
+            ))}
+          </Surface>
+        )}
+      </ScrollView>
     </View>
   );
 }
 
-function StudentDetail({ student, onBack }) {
+function StudentDetail({ student, onBack, onEdit, onDelete }) {
   return (
     <View style={styles.content}>
       <View style={styles.detailHeader}>
@@ -202,6 +294,158 @@ function StudentDetail({ student, onBack }) {
           <DetailRow label="Alamat" value={student.alamat} />
         </Card.Content>
       </Card>
+
+      <View style={styles.detailActions}>
+        <Button
+          mode="contained"
+          icon="pencil"
+          onPress={onEdit}
+          style={styles.detailActionButton}
+          contentStyle={styles.actionButtonContent}
+        >
+          Edit
+        </Button>
+        <Button
+          mode="outlined"
+          icon="delete-outline"
+          onPress={onDelete}
+          textColor="#b91c1c"
+          style={styles.detailActionButton}
+          contentStyle={styles.actionButtonContent}
+        >
+          Hapus
+        </Button>
+      </View>
+    </View>
+  );
+}
+
+function StudentForm({ student, onCancel, onSave, isSaving }) {
+  const [values, setValues] = useState({
+    nim: student?.nim ?? '',
+    nama: student?.nama ?? '',
+    jurusan: student?.jurusan ?? '',
+    angkatan: student?.angkatan ?? '',
+    email: student?.email ?? '',
+    noTelepon: student?.noTelepon ?? '',
+    alamat: student?.alamat ?? '',
+  });
+  const [errorMessage, setErrorMessage] = useState('');
+  const fields = [
+    { key: 'nim', label: 'NIM', keyboardType: 'number-pad' },
+    { key: 'nama', label: 'Nama lengkap' },
+    { key: 'jurusan', label: 'Jurusan' },
+    { key: 'angkatan', label: 'Angkatan', keyboardType: 'number-pad' },
+    {
+      key: 'email',
+      label: 'Email',
+      keyboardType: 'email-address',
+      autoCapitalize: 'none',
+    },
+    {
+      key: 'noTelepon',
+      label: 'No. Telepon',
+      keyboardType: 'phone-pad',
+    },
+    { key: 'alamat', label: 'Alamat', multiline: true },
+  ];
+
+  async function handleSubmit() {
+    const studentValues = Object.fromEntries(
+      Object.entries(values).map(([key, value]) => [key, value.trim()])
+    );
+
+    if (Object.values(studentValues).some((value) => !value)) {
+      setErrorMessage('Semua kolom wajib diisi.');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studentValues.email)) {
+      setErrorMessage('Masukkan alamat email yang valid.');
+      return;
+    }
+
+    setErrorMessage('');
+    try {
+      await onSave(studentValues);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      setErrorMessage(
+        message.includes('UNIQUE constraint failed')
+          ? 'NIM tersebut sudah digunakan oleh mahasiswa lain.'
+          : message || 'Data mahasiswa tidak dapat disimpan. Silakan coba lagi.'
+      );
+    }
+  }
+
+  return (
+    <View style={styles.content}>
+      <View style={styles.detailHeader}>
+        <Pressable
+          style={styles.backButton}
+          onPress={onCancel}
+          disabled={isSaving}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: isSaving }}
+          accessibilityLabel="Kembali"
+        >
+          <Text style={styles.backArrow}>‹</Text>
+        </Pressable>
+        <Text variant="titleLarge" style={styles.detailHeaderTitle}>
+          {student ? 'Edit Mahasiswa' : 'Tambah Mahasiswa'}
+        </Text>
+      </View>
+
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.formContent}
+      >
+        {fields.map((field) => (
+          <TextInput
+            key={field.key}
+            label={field.label}
+            mode="outlined"
+            value={values[field.key]}
+            onChangeText={(value) =>
+              setValues((current) => ({ ...current, [field.key]: value }))
+            }
+            keyboardType={field.keyboardType}
+            autoCapitalize={field.autoCapitalize}
+            multiline={field.multiline}
+            numberOfLines={field.multiline ? 3 : 1}
+            style={field.multiline ? styles.addressInput : styles.formInput}
+            accessibilityLabel={field.label}
+          />
+        ))}
+
+        {errorMessage ? (
+          <Text accessibilityRole="alert" style={styles.formError}>
+            {errorMessage}
+          </Text>
+        ) : null}
+
+        <View style={styles.formActions}>
+          <Button
+            mode="outlined"
+            onPress={onCancel}
+            disabled={isSaving}
+            style={styles.detailActionButton}
+            contentStyle={styles.actionButtonContent}
+          >
+            Batal
+          </Button>
+          <Button
+            mode="contained"
+            onPress={handleSubmit}
+            loading={isSaving}
+            disabled={isSaving}
+            style={styles.detailActionButton}
+            contentStyle={styles.actionButtonContent}
+          >
+            {student ? 'Simpan Perubahan' : 'Simpan'}
+          </Button>
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -221,36 +465,108 @@ function DetailRow({ label, value }) {
 
 export default function App() {
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [formState, setFormState] = useState(null);
   const [students, setStudents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const refreshStudents = useCallback(() => {
+  const refreshStudents = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage('');
 
-    loadMahasiswa()
-      .then(setStudents)
-      .catch(() => {
-        setErrorMessage(
-          'Data mahasiswa tidak dapat dimuat. Pastikan database dapat diakses, lalu coba lagi.'
-        );
-      })
-      .finally(() => setIsLoading(false));
+    try {
+      const loadedStudents = await loadMahasiswa();
+      setStudents(loadedStudents);
+      return loadedStudents;
+    } catch {
+      setErrorMessage(
+        'Data mahasiswa tidak dapat dimuat. Pastikan database dapat diakses, lalu coba lagi.'
+      );
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     refreshStudents();
   }, [refreshStudents]);
 
+  async function handleSaveStudent(values) {
+    setIsSaving(true);
+    try {
+      if (formState.student) {
+        await updateMahasiswa(formState.student.id, values);
+      } else {
+        await createMahasiswa(values);
+      }
+
+      const loadedStudents = await refreshStudents();
+      if (!loadedStudents) {
+        throw new Error(
+          'Data tersimpan, tetapi daftar tidak dapat dimuat ulang. Kembali ke daftar dan coba lagi.'
+        );
+      }
+
+      if (formState.student) {
+        const updatedStudent = loadedStudents.find(
+          (item) => item.id === formState.student.id
+        );
+        setSelectedStudent(updatedStudent ?? null);
+      } else {
+        setSelectedStudent(null);
+      }
+      setFormState(null);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function confirmDeleteStudent(student) {
+    Alert.alert(
+      'Hapus mahasiswa?',
+      `Data ${student.nama} akan dihapus secara permanen dari perangkat ini.`,
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Hapus',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteMahasiswa(student.id);
+              setSelectedStudent(null);
+              await refreshStudents();
+            } catch {
+              Alert.alert(
+                'Gagal menghapus data',
+                'Data mahasiswa tidak dapat dihapus. Silakan coba lagi.'
+              );
+            }
+          },
+        },
+      ]
+    );
+  }
+
   return (
     <PaperProvider theme={theme}>
       <SafeAreaView style={styles.container}>
         <StatusBar style="dark" />
-        {selectedStudent ? (
+        {formState ? (
+          <StudentForm
+            key={formState.student?.id ?? 'new'}
+            student={formState.student}
+            onCancel={() => setFormState(null)}
+            onSave={handleSaveStudent}
+            isSaving={isSaving}
+          />
+        ) : selectedStudent ? (
           <StudentDetail
             student={selectedStudent}
             onBack={() => setSelectedStudent(null)}
+            onEdit={() => setFormState({ student: selectedStudent })}
+            onDelete={() => confirmDeleteStudent(selectedStudent)}
           />
         ) : isLoading ? (
           <View style={styles.feedbackContainer}>
@@ -275,7 +591,11 @@ export default function App() {
             </Button>
           </View>
         ) : (
-          <StudentList students={students} onSelect={setSelectedStudent} />
+          <StudentList
+            students={students}
+            onSelect={setSelectedStudent}
+            onAdd={() => setFormState({ student: null })}
+          />
         )}
       </SafeAreaView>
     </PaperProvider>
@@ -311,10 +631,33 @@ const styles = StyleSheet.create({
   appImage: {
     backgroundColor: theme.colors.primary,
   },
+  addButton: {
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  actionButtonContent: {
+    minHeight: 46,
+  },
+  studentListScroll: {
+    flex: 1,
+  },
+  studentListContent: {
+    paddingBottom: 20,
+  },
   listSurface: {
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#ffffff',
+  },
+  emptySurface: {
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 24,
+  },
+  emptyText: {
+    color: '#64748b',
+    textAlign: 'center',
   },
   listTitle: {
     fontWeight: '600',
@@ -359,6 +702,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 18,
   },
+  detailActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  detailActionButton: {
+    borderRadius: 12,
+    flex: 1,
+  },
   profile: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -386,6 +738,27 @@ const styles = StyleSheet.create({
   },
   detailValue: {
     color: '#172554',
+  },
+  formContent: {
+    paddingBottom: 24,
+  },
+  formInput: {
+    backgroundColor: '#ffffff',
+    marginBottom: 12,
+  },
+  addressInput: {
+    backgroundColor: '#ffffff',
+    marginBottom: 12,
+    minHeight: 96,
+  },
+  formError: {
+    color: '#b91c1c',
+    marginBottom: 12,
+  },
+  formActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
   },
   feedbackContainer: {
     alignItems: 'center',

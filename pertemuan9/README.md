@@ -1,13 +1,15 @@
 # Data Mahasiswa
 
-Aplikasi React Native berbasis Expo yang menampilkan daftar mahasiswa menggunakan
-React Native Paper. Setiap item pada daftar dapat ditekan untuk membuka data
-lengkap mahasiswa.
+Aplikasi React Native berbasis Expo untuk mengelola data mahasiswa menggunakan
+React Native Paper dan SQLite lokal.
 
 ## Fitur
 
 - Menampilkan daftar mahasiswa berisi nama dan NIM.
 - Membuka detail mahasiswa ketika item ditekan.
+- Menambahkan data mahasiswa baru.
+- Mengubah dan menghapus data mahasiswa.
+- Memvalidasi kolom wajib, format email, dan NIM yang tidak boleh duplikat.
 - Menampilkan jurusan, angkatan, email, nomor telepon, dan alamat.
 - Tampilan menggunakan komponen Material Design dari React Native Paper.
 - Menyimpan dan membaca data mahasiswa menggunakan SQLite lokal.
@@ -41,7 +43,7 @@ lengkap mahasiswa.
    npx expo install expo-sqlite
    ```
 
-4. Ganti isi `App.js` dengan implementasi daftar dan detail mahasiswa.
+4. Ganti isi `App.js` dengan implementasi pengelolaan data mahasiswa.
 
 5. Jalankan project dengan salah satu perintah pada bagian berikut.
 
@@ -75,16 +77,17 @@ mode tunnel:
 npx expo start --tunnel
 ```
 
-## Mengubah data mahasiswa
+## Pengelolaan data mahasiswa
 
-Data contoh berada pada konstanta `initialMahasiswa` di `App.js`. Tambah atau ubah
-object pada array tersebut dengan properti `nim`, `nama`, `jurusan`, `angkatan`,
-`email`, `noTelepon`, dan `alamat`.
+Gunakan tombol **Tambah Mahasiswa** pada daftar untuk membuat data. Pilih data
+untuk melihat detail, lalu gunakan tombol **Edit** atau **Hapus**. Penghapusan
+memerlukan konfirmasi. Semua perubahan disimpan langsung ke SQLite lokal dan
+tetap tersedia setelah aplikasi dibuka kembali.
 
 Saat aplikasi pertama kali dijalankan, tabel `mahasiswa` dibuat otomatis pada
-database lokal `mahasiswa.db`. Data contoh dimasukkan menggunakan
-`INSERT OR IGNORE`, sehingga tidak dibuat duplikat pada pembukaan aplikasi
-berikutnya.
+database lokal `mahasiswa.db`. Data contoh pada konstanta `initialMahasiswa`
+hanya dimasukkan sekali jika tabel masih kosong; penghapusan data contoh tidak
+akan membuatnya muncul kembali.
 
 Untuk target web, `metro.config.js` sudah dikonfigurasi agar file WASM SQLite
 dapat dibundle. Hosting web juga harus meneruskan header
